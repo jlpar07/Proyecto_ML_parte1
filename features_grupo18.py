@@ -73,6 +73,8 @@ except Exception:                                    # pragma: no cover
 # Palabras que NO se eliminan como stop words porque cambian el sentido
 PALABRAS_RELEVANTES = {"no", "nunca", "jamás", "sin", "ni", "tampoco", "pero", "aunque",
                        "muy", "bastante", "demasiado", "más", "menos", "poco"}
+PALABRAS_NEGACION = {"no", "nunca", "jamas", "sin", "ni", "tampoco"}
+PUNTUACION_NEGACION = {".", ",", ";", "!", "?"}
 
 
 def quitar_tildes(texto):
@@ -129,10 +131,27 @@ def tokens_crudos(clausula):
     return re.sub(r'[^\w\s]', ' ', clausula).split()
 
 
-def preprocesar_clausula(clausula):
+def preprocesar_clausula(clausula, usar_negaciones=False):
     """Normaliza, tokeniza, quita stop words y aplica stemming."""
-    clausula = re.sub(r'[^\w\s]', '', clausula)
-    return [raiz(p) for p in clausula.split() if p not in STOP_SIN_TILDE]
+    if not usar_negaciones:
+        clausula = re.sub(r'[^\w\s]', '', clausula)
+        return [raiz(p) for p in clausula.split() if p not in STOP_SIN_TILDE]
+
+    tokens = re.findall(r"\w+|[.,;!?]", quitar_tildes(clausula.lower()))
+    salida, en_negacion = [], False
+    for token in tokens:
+        if token in PUNTUACION_NEGACION:
+            en_negacion = False
+            continue
+        if token in PALABRAS_NEGACION:
+            salida.append(raiz(token))
+            en_negacion = True
+            continue
+        if token in STOP_SIN_TILDE:
+            continue
+        raiz_token = raiz(token)
+        salida.append(f"NOT_{raiz_token}" if en_negacion else raiz_token)
+    return salida
 
 
 def marcadores_de(clausula):
@@ -293,7 +312,7 @@ class AnalizadorDeResenas(BaseEstimator, TransformerMixin):
 
     def __init__(self, min_freq_opinion=5, max_freq_neutral=0, umbral=0.0,
                  C_detector=1.0, C_polaridad=1.0, usar_pseudo=True,
-                 usar_marcadores=True, clase_neutral=None):
+                 usar_marcadores=True, usar_negaciones=False, clase_neutral=None):
         self.min_freq_opinion = min_freq_opinion
         self.max_freq_neutral = max_freq_neutral
         self.umbral = umbral
@@ -301,6 +320,7 @@ class AnalizadorDeResenas(BaseEstimator, TransformerMixin):
         self.C_polaridad = C_polaridad
         self.usar_pseudo = usar_pseudo
         self.usar_marcadores = usar_marcadores
+        self.usar_negaciones = usar_negaciones
         self.clase_neutral = clase_neutral
 
     # ------------------------------------------------------------------ fit
@@ -407,7 +427,12 @@ class AnalizadorDeResenas(BaseEstimator, TransformerMixin):
             # --- vistas de texto ---
             tokens_roles = []
             for clausula, rol in zip(clausulas, roles):
-                tokens_roles += [f"{rol}_{t}" for t in preprocesar_clausula(clausula)]
+                tokens_roles += [
+                    f"{rol}_{t}"
+                    for t in preprocesar_clausula(
+                        clausula, usar_negaciones=self.usar_negaciones
+                    )
+                ]
                 if self.usar_marcadores:
                     tokens_roles += [f"{rol}_{m}" for m in marcadores_de(clausula)]
             fila['roles'] = " ".join(tokens_roles)
@@ -416,7 +441,12 @@ class AnalizadorDeResenas(BaseEstimator, TransformerMixin):
             n = len(clausulas)
             for k2, clausula in enumerate(clausulas):
                 pre = "L" if k2 == n - 1 else ("P" if k2 == n - 2 else "E")
-                tokens_epl += [f"{pre}_{t}" for t in preprocesar_clausula(clausula)]
+                tokens_epl += [
+                    f"{pre}_{t}"
+                    for t in preprocesar_clausula(
+                        clausula, usar_negaciones=self.usar_negaciones
+                    )
+                ]
             fila['epl'] = " ".join(tokens_epl)
 
             fila['ultima'] = re.sub(r'[^\w\s]', '', clausulas[-1]) if clausulas else ""
