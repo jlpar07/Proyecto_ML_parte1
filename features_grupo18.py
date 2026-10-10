@@ -9,6 +9,11 @@ conteos de vocabulario, TF-IDF de palabras y de caracteres, n-gramas) y modelos
 de scikit-learn. No se usa aprendizaje profundo, ni arquitecturas transformer,
 ni embeddings preentrenados, conforme a los requisitos de la Parte 1.
 
+Uso de IA: la implementacion de este modulo son
+nuestros; se uso un asistente de IA como apoyo en la redaccion de estos
+comentarios, docstrings explicativos y como una guia de que hacer para 
+mejorar los resultados.
+
 ========================= El problema y la idea =========================
 
 Cada resena mezcla varias cláusulas: unas hablan de logistica (envio, empaque,
